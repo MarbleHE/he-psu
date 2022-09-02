@@ -135,7 +135,7 @@ int main()
 
     std::cout << "Now the third party computes the private set union and returns the result to a:" << std::endl;
 
-    auto bits = psu::compute_psu_bools(input_a, SIZE_A, input_b, SIZE_B, *a.context, *a.relin_keys);
+    auto bits = psu::compute_psu_bools(input_a, input_b, *a.encoder, *a.encryptor, *a.context, *a.relin_keys, *a.evaluator);
 
     std::cout << "Now we'll verify the result:" << std::endl;
 

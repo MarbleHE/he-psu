@@ -9,12 +9,6 @@ namespace psu
     /// Identifiers are represented bit-wise across ctxts and batched, one identifier per slot.
     typedef std::vector<seal::Ciphertext> encrypted_identifiers;
 
-    /// @brief Computes (batched) bit-wise equality by computing the product of the XOR of the bits of each identifier.
-    /// @param a Potentially batched encrypted identifiers
-    /// @param b Potentially batched encrypted identifiers
-    /// @return A ciphertext containing 1 in slot i  iff identifier a[i] and b[i] are equal
-    seal::Ciphertext equal(const encrypted_identifiers &a, const encrypted_identifiers &b);
-
     /// @brief Encrypt a set in the necessary format for the given parameters, replicating the set as many times as possible to perform private set union with a set of size target_size
     /// @param set WARNING! While implemented as 32 bit unsigned integers, the elements must only be 24-bit numbers!
     /// @param target_size Size of the other set that we want to compute the union of
@@ -116,9 +110,38 @@ namespace psu
         return set;
     }
 
-    seal::Ciphertext compute_psu_bools(encrypted_identifiers &input_a, size_t size_a, encrypted_identifiers &input_b, size_t size_b, const seal::SEALContext &context, const seal::RelinKeys &rlk)
+    /// @brief Computes (batched) bit-wise equality by computing the product of the XOR of the bits of each identifier.
+    /// Because of the batching scheme used, this effectively computes a vector that gives you whether or not an element is in the union
+    /// @param input_a batched encrypted identifiers
+    /// @param input_b batched encrypted identifiers
+    /// @return A ciphertext containing 1 in slot i  iff identifier a[i] and b[i] are equal
+    seal::Ciphertext compute_psu_bools(encrypted_identifiers &input_a, encrypted_identifiers &input_b, const seal::BatchEncoder &encoder, const seal::Encryptor &encryptor, const seal::SEALContext &context, const seal::RelinKeys &rlk, const seal::Evaluator &evaluator)
     {
-        // TODO: Implement
-        return seal::Ciphertext(context);
+        // Sadly there's no sub_plain for the direction we need (1 - ctxt)
+        // so we need to encrypt a ctxt full of ones
+        std::vector<uint64_t> ones(encoder.slot_count(), 1);
+        seal::Plaintext ones_ptxt;
+        encoder.encode(ones, ones_ptxt);
+        seal::Ciphertext ones_ctxt;
+        encryptor.encrypt(ones_ptxt, ones_ctxt);
+
+        // Overwrite a with !(a XOR b)
+        for (size_t b = 0; b < 24; ++b)
+        {
+            // Compute XOR as (a-b)^2
+            evaluator.sub_inplace(input_a[b], input_b[b]);
+            evaluator.square_inplace(input_a[b]);
+            evaluator.relinearize_inplace(input_a[b], rlk);
+
+            // Compute NOT as 1 - x
+            evaluator.sub(ones_ctxt, input_a[b], input_a[b]);
+        }
+
+        // Now we want the product of all 24 elements but in log(24) depth
+        // thankfully, seal has a helper function for this!
+        seal::Ciphertext output(context);
+        evaluator.multiply_many(input_a, rlk, output);
+
+        return output;
     }
 }

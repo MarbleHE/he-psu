@@ -172,16 +172,32 @@ int main()
     {
         std::cout << "Oops..something went wrong :(" << std::endl;
 
+        std::cout << "Set a:" << std::endl;
+        for (auto &x : set_a)
+        {
+            std::cout << x << " ";
+        }
+        std::cout << std::endl;
+
+        std::cout << "Set b:" << std::endl;
+        for (auto &x : set_a)
+        {
+            std::cout << x << " ";
+        }
+        std::cout << std::endl;
+
         std::cout << "Actual union:" << std::endl;
         for (auto &x : actual_union)
         {
-            std::cout << x << std::endl;
+            std::cout << x << " ";
         }
+        std::cout << std::endl;
 
         std::cout << "Result:" << std::endl;
         for (auto &x : result)
         {
-            std::cout << x << std::endl;
+            std::cout << x << " ";
         }
+        std::cout << std::endl;
     }
 }

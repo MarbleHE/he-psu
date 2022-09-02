@@ -7,9 +7,8 @@
 
 int main()
 {
-    std::cout << "We will compute the set union between two sets encrypted under the same key:" << std::endl;
-    const size_t SIZE_A = 100;
-    const size_t SIZE_B = SIZE_A;
+    std::cout << "We will compute the set union between two sets (of the same size) encrypted under the same key:" << std::endl;
+    const size_t SET_SIZE = 100;
 
     std::cout << "The output party (A) generates the keys and publishes the public key." << std::endl;
     class A
@@ -30,7 +29,7 @@ int main()
             std::random_device rd;
             std::mt19937 gen(rd());
             std::uniform_int_distribution<> distrib(1, 1 << 23);
-            for (size_t i = 0; i < SIZE_A; ++i)
+            for (size_t i = 0; i < SET_SIZE; ++i)
             {
                 set.insert(distrib(gen));
             }
@@ -58,7 +57,7 @@ int main()
             keygen->create_relin_keys(*relin_keys);
         };
 
-        psu::encrypted_identifiers encrypt_set(size_t target_size)
+        psu::encrypted_identifiers encrypt_set()
         {
             return psu::encrypt_set_a(set, *encoder, *encryptor);
         }
@@ -91,9 +90,9 @@ int main()
     A a;
 
     /// Encrypt a's set
-    auto input_a = a.encrypt_set(SIZE_B);
+    auto input_a = a.encrypt_set();
 
-    std::cout << "The second party only provides an encrypted input. This is sent to the third-party compute server." << std::endl;
+    std::cout << "The second party (B) only provides an encrypted input. This is sent to the third-party compute server." << std::endl;
 
     class B
     {
@@ -106,13 +105,13 @@ int main()
             std::random_device rd;
             std::mt19937 gen(rd());
             std::uniform_int_distribution<> distrib(1, 1 << 23);
-            for (size_t i = 0; i < SIZE_B; ++i)
+            for (size_t i = 0; i < SET_SIZE; ++i)
             {
                 set.insert(distrib(gen));
             }
         }
 
-        psu::encrypted_identifiers encrypt_set(size_t target_size, const seal::BatchEncoder &encoder, const seal::Encryptor &encryptor)
+        psu::encrypted_identifiers encrypt_set(const seal::BatchEncoder &encoder, const seal::Encryptor &encryptor)
         {
             return psu::encrypt_set_b(set, encoder, encryptor);
         }
@@ -131,9 +130,9 @@ int main()
     B b;
 
     /// Encrypt b's set
-    auto input_b = b.encrypt_set(SIZE_B, *a.encoder, *a.encryptor);
+    auto input_b = b.encrypt_set(*a.encoder, *a.encryptor);
 
-    std::cout << "Now the third party computes the private set union and returns the result to a:" << std::endl;
+    std::cout << "Now the third party (C) computes the private set union and returns the result to A:" << std::endl;
 
     auto bits = psu::compute_psu_bools(input_a, input_b, *a.encoder, *a.encryptor, *a.context, *a.relin_keys, *a.evaluator);
 

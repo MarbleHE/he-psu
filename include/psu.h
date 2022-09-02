@@ -1,5 +1,6 @@
 #include "seal/seal.h"
 #include <set>
+#include <cassert>
 
 // TODO: Move all the definitions to the *.cpp file once it all works properly :)
 
@@ -137,8 +138,9 @@ namespace psu
         // start with set a
         std::set<uint32_t> result = set_a;
 
-        size_t repeats = bits.size() / set_b.size();
-        for (size_t r = 0; r < repeats - 1; ++r)
+        assert(set_a.size() == set_b.size() && "SETS MUST HAVE THE SAME SIZE");
+
+        for (size_t r = 0; r < set_b.size(); ++r)
         {
             auto it = set_b.begin();
             for (size_t idx = 0; idx < set_b.size(); ++idx)
@@ -147,6 +149,7 @@ namespace psu
                 {
                     result.insert(*it);
                 }
+
                 if (++it == set_b.end())
                 {
                     it = set_b.begin();

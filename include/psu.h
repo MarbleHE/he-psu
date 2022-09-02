@@ -70,7 +70,7 @@ namespace psu
 
     encrypted_identifiers encrypt_set_b(const std::set<uint32_t> &set, size_t target_size, const seal::BatchEncoder &encoder, const seal::Encryptor &encryptor)
     {
-        std::vector<std::vector<uint64_t>> values(encoder.slot_count(), std::vector<uint64_t>(24));
+        std::vector<std::vector<uint64_t>> values(encoder.slot_count(), std::vector<uint64_t>(24, 0));
 
         // Encode as many repetitions of the set as possible, except for the last one!
         size_t repeats = encoder.slot_count() / set.size();
@@ -81,7 +81,7 @@ namespace psu
             {
                 for (size_t b = 0; b < 24; ++b)
                 {
-                    values[r * set.size() + idx][b] = id >> 1;
+                    values[r * set.size() + idx][b] = (id >>= 1) % 2;
                 }
                 ++idx;
             }

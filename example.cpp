@@ -8,8 +8,8 @@
 int main()
 {
     std::cout << "We will compute the set union between two sets encrypted under the same key:" << std::endl;
-    const size_t SIZE_A = 1000;
-    const size_t SIZE_B = 1000;
+    const size_t SIZE_A = 100;
+    const size_t SIZE_B = SIZE_A;
 
     std::cout << "The output party (A) generates the keys and publishes the public key." << std::endl;
     class A
@@ -171,5 +171,17 @@ int main()
     else
     {
         std::cout << "Oops..something went wrong :(" << std::endl;
+
+        std::cout << "Actual union:" << std::endl;
+        for (auto &x : actual_union)
+        {
+            std::cout << x << std::endl;
+        }
+
+        std::cout << "Result:" << std::endl;
+        for (auto &x : result)
+        {
+            std::cout << x << std::endl;
+        }
     }
 }

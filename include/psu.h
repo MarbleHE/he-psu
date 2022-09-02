@@ -98,18 +98,6 @@ namespace psu
         return output;
     }
 
-    /// @brief Decrypts a set back to a list of identifiers
-    /// @param set set to decrypt
-    /// @param decryptor SEAL decryptor to use
-    /// @param encoder SEAL encoder, which is also a "de"coder
-    /// @return
-    std::set<uint32_t> decrypt_set(encrypted_identifiers &enc, const seal::Decryptor &decryptor, const seal::BatchEncoder &encoder)
-    {
-        std::set<uint32_t> set;
-        // TODO: Implement
-        return set;
-    }
-
     /// @brief Computes (batched) bit-wise equality by computing the product of the XOR of the bits of each identifier.
     /// Because of the batching scheme used, this effectively computes a vector that gives you whether or not an element is in the union
     /// @param input_a batched encrypted identifiers
@@ -141,6 +129,9 @@ namespace psu
         // thankfully, seal has a helper function for this!
         seal::Ciphertext output(context);
         evaluator.multiply_many(input_a, rlk, output);
+
+        // And finally, we want to invert again
+        evaluator.sub(ones_ctxt, output, output);
 
         return output;
     }

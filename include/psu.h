@@ -145,7 +145,7 @@ namespace psu
         return output;
     }
 
-    /// Convert bits to an actual union:
+    /// Convert bits back to set
     std::set<uint32_t> bits_to_set(const std::set<uint32_t> &set_a, const std::set<uint32_t> &set_b, const std::vector<uint64_t> &bits)
     {
         // start with set a
@@ -153,25 +153,15 @@ namespace psu
 
         assert(set_a.size() == set_b.size() && "SETS MUST HAVE THE SAME SIZE");
 
-        for (size_t r = 0; r < set_b.size(); ++r)
+        auto it = set_b.begin();
+        for (size_t i = 0; i < set_b.size(); ++i)
         {
-            auto it = set_b.begin();
-            for (size_t idx = 0; idx < set_b.size(); ++idx)
-            {
-                if (bits[idx])
-                {
-                    result.insert(*it);
-                }
 
-                if (++it == set_b.end())
-                {
-                    it = set_b.begin();
-                }
-                else
-                {
-                    ++it;
-                }
+            if (bits[i])
+            {
+                result.insert(*it);
             }
+            ++it;
         }
         return result;
     }

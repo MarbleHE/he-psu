@@ -157,7 +157,7 @@ int main()
     std::set_union(set_a.begin(), set_a.end(), set_b.begin(), set_b.end(),
                    std::inserter(actual_union, actual_union.begin()));
 
-    if (false) // TODO: Figure how to check it
+    if (result == actual_union)
     {
         std::cout << "The result is correct! Yay!" << std::endl;
     }

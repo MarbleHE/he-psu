@@ -147,17 +147,7 @@ int main()
     auto set_b = b.get_set_for_testing();
 
     // Convert bits to an actual union:
-    std::set<uint32_t> result;
-    auto it = set_a.begin();
-    assert(set_a.begin() != set_a.end() && "Set a must not be empty!");
-    for (size_t i = 0; i < bits_dec.size(); ++i)
-    {
-        if (++it == set_a.end())
-        {
-            it = set_a.begin();
-        }
-        result.insert(*it);
-    }
+    auto result = psu::bits_to_set(set_a, set_b, bits_dec);
 
     // Compute "correct" union
     std::set<uint32_t> actual_union;

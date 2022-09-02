@@ -146,4 +146,31 @@ namespace psu
 
         return output;
     }
+    // Convert bits to an actual union:
+    std::set<uint32_t> bits_to_set(const std::set<uint32_t> &set_a, const std::set<uint32_t> &set_b, const std::vector<uint64_t> &bits)
+    {
+        // start with set a
+        std::set<uint32_t> result = set_a;
+
+        size_t repeats = bits.size() / set_b.size();
+        for (size_t r = 0; r < repeats - 1; ++r)
+        {
+            auto it = set_b.begin();
+            for (size_t idx = 0; idx < set_b.size(); ++idx)
+            {
+                if (bits[idx])
+                {
+                    result.insert(*it);
+                }
+                if (++it == set_b.end())
+                {
+                    it = set_b.begin();
+                }
+                else
+                {
+                    ++it;
+                }
+            }
+        }
+    }
 }

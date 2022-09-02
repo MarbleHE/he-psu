@@ -60,7 +60,7 @@ int main()
 
         psu::encrypted_identifiers encrypt_set(size_t target_size)
         {
-            return psu::encrypt_set(set, target_size, *encoder, *encryptor);
+            return psu::encrypt_set_a(set, target_size, *encoder, *encryptor);
         }
 
         /// public only for testing!
@@ -114,7 +114,7 @@ int main()
 
         psu::encrypted_identifiers encrypt_set(size_t target_size, const seal::BatchEncoder &encoder, const seal::Encryptor &encryptor)
         {
-            return psu::encrypt_set(set, target_size, encoder, encryptor);
+            return psu::encrypt_set_b(set, target_size, encoder, encryptor);
         }
 
         /// public only for testing!

@@ -41,7 +41,7 @@ namespace psu
         {
             for (size_t b = 0; b < 24; ++b)
             {
-                values[(repeats - 1) * set.size() + (idx % set.size())][b] = id >> 1;
+                values[(repeats - 1) * set.size() + (idx % set.size())][b] = (id >>= 1);
             }
             ++idx;
         }

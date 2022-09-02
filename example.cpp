@@ -38,8 +38,7 @@ int main()
 
             // Parameter selection
             parms = std::make_shared<seal::EncryptionParameters>(seal::scheme_type::bfv);
-            size_t poly_modulus_degree = 1 << 12;
-            assert(poly_modulus_degree >= SET_SIZE * SET_SIZE && "MUST HAVE AT LEAST SET_SIZE^2 SLOTS");
+            size_t poly_modulus_degree = SET_SIZE * SET_SIZE;
             parms->set_poly_modulus_degree(poly_modulus_degree);
             parms->set_coeff_modulus(seal::CoeffModulus::BFVDefault(poly_modulus_degree));
             parms->set_plain_modulus(seal::PlainModulus::Batching(poly_modulus_degree, 20));

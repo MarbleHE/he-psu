@@ -3,6 +3,7 @@
 #include <memory>
 #include <random>
 #include <set>
+#include <cassert>
 
 int main()
 {
@@ -36,7 +37,7 @@ int main()
 
             // Parameter selection
             parms = std::make_shared<seal::EncryptionParameters>(seal::scheme_type::bfv);
-            size_t poly_modulus_degree = 1 << 12;
+            size_t poly_modulus_degree = 1 << 13; // 2^14
             parms->set_poly_modulus_degree(poly_modulus_degree);
             parms->set_coeff_modulus(seal::CoeffModulus::BFVDefault(poly_modulus_degree));
             parms->set_plain_modulus(seal::PlainModulus::Batching(poly_modulus_degree, 20));
@@ -57,15 +58,19 @@ int main()
             keygen->create_relin_keys(*relin_keys);
         };
 
-        std::vector<psu::encrypted_identifiers> encrypt_set(size_t target_size)
+        psu::encrypted_identifiers encrypt_set(size_t target_size)
         {
             return psu::encrypt_set(set, target_size, *encoder, *encryptor);
         }
 
         /// public only for testing!
-        std::set<uint32_t> decrypt_set(std::vector<psu::encrypted_identifiers> &set)
+        std::vector<uint64_t> decrypt(seal::Ciphertext &ctxt)
         {
-            return psu::decrypt_set(set, *decryptor, *encoder);
+            seal::Plaintext ptxt;
+            decryptor->decrypt(ctxt, ptxt);
+            std::vector<uint64_t> v;
+            encoder->decode(ptxt, v);
+            return v;
         }
 
         /// public only for testing!
@@ -107,7 +112,7 @@ int main()
             }
         }
 
-        std::vector<psu::encrypted_identifiers> encrypt_set(size_t target_size, const seal::BatchEncoder &encoder, const seal::Encryptor &encryptor)
+        psu::encrypted_identifiers encrypt_set(size_t target_size, const seal::BatchEncoder &encoder, const seal::Encryptor &encryptor)
         {
             return psu::encrypt_set(set, target_size, encoder, encryptor);
         }
@@ -130,23 +135,36 @@ int main()
 
     std::cout << "Now the third party computes the private set union and returns the result to a:" << std::endl;
 
-    auto result = psu::compute_psu(input_a, SIZE_A, input_b, SIZE_B, *a.context, *a.relin_keys);
+    auto bits = psu::compute_psu_bools(input_a, SIZE_A, input_b, SIZE_B, *a.context, *a.relin_keys);
 
     std::cout << "Now we'll verify the result:" << std::endl;
 
     // Decrypt the result
-    auto result_dec = a.decrypt_set(result);
+    auto bits_dec = a.decrypt(bits);
 
     // Get the "real" sets
     auto set_a = a.get_set_for_testing();
     auto set_b = b.get_set_for_testing();
+
+    // Convert bits to an actual union:
+    std::set<uint32_t> result;
+    auto it = set_a.begin();
+    assert(set_a.begin() != set_a.end() && "Set a must not be empty!");
+    for (size_t i = 0; i < bits_dec.size(); ++i)
+    {
+        if (++it == set_a.end())
+        {
+            it = set_a.begin();
+        }
+        result.insert(*it);
+    }
 
     // Compute "correct" union
     std::set<uint32_t> actual_union;
     std::set_union(set_a.begin(), set_a.end(), set_b.begin(), set_b.end(),
                    std::inserter(actual_union, actual_union.begin()));
 
-    if (actual_union == result_dec)
+    if (false) // TODO: Figure how to check it
     {
         std::cout << "The result is correct! Yay!" << std::endl;
     }

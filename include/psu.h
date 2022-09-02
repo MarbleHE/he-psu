@@ -21,10 +21,19 @@ namespace psu
     /// @param encoder SEAL encoder to use
     /// @param encryptor SEAL encrytor to use
     /// @return A set of
-    std::vector<encrypted_identifiers> encrypt_set(const std::set<uint32_t> &set, size_t target_size, const seal::BatchEncoder &encoder, const seal::Encryptor &encryptor)
+    encrypted_identifiers encrypt_set(const std::set<uint32_t> &set, size_t target_size, const seal::BatchEncoder &encoder, const seal::Encryptor &encryptor)
     {
-        std::vector<encrypted_identifiers> output;
-        // TODO: Implement
+        std::vector<std::vector<uint64_t>> values(set.size(), std::vector<uint64_t>(24));
+        size_t idx = 0;
+        for (auto id : set)
+        {
+            for (size_t b = 0; b < 23; ++b)
+            {
+                values[idx][b] = id >> 1;
+            }
+            ++idx;
+        }
+        encrypted_identifiers output;
         return output;
     }
 
@@ -33,16 +42,16 @@ namespace psu
     /// @param decryptor SEAL decryptor to use
     /// @param encoder SEAL encoder, which is also a "de"coder
     /// @return
-    std::set<uint32_t> decrypt_set(std::vector<encrypted_identifiers> &enc, const seal::Decryptor &decryptor, const seal::BatchEncoder &encoder)
+    std::set<uint32_t> decrypt_set(encrypted_identifiers &enc, const seal::Decryptor &decryptor, const seal::BatchEncoder &encoder)
     {
         std::set<uint32_t> set;
         // TODO: Implement
         return set;
     }
 
-    std::vector<encrypted_identifiers> compute_psu(std::vector<encrypted_identifiers> &input_a, size_t size_a, std::vector<encrypted_identifiers> &input_b, size_t size_b, const seal::SEALContext &context, const seal::RelinKeys &rlk)
+    seal::Ciphertext compute_psu_bools(encrypted_identifiers &input_a, size_t size_a, encrypted_identifiers &input_b, size_t size_b, const seal::SEALContext &context, const seal::RelinKeys &rlk)
     {
         // TODO: Implement
-        return input_a;
+        return seal::Ciphertext(context);
     }
 }

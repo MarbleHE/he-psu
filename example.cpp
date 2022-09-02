@@ -8,7 +8,8 @@
 int main()
 {
     std::cout << "We will compute the set union between two sets (of the same size) encrypted under the same key:" << std::endl;
-    const size_t SET_SIZE = 100;
+    const size_t SET_SIZE = 16;
+    assert(pow(2.0, log2(SET_SIZE)) == SET_SIZE && "SET SIZE MUST BE A POWER OF TWO");
 
     std::cout << "The output party (A) generates the keys and publishes the public key." << std::endl;
     class A
@@ -21,6 +22,7 @@ int main()
         std::shared_ptr<seal::Encryptor> encryptor;
         std::shared_ptr<seal::Evaluator> evaluator;
         std::shared_ptr<seal::RelinKeys> relin_keys;
+        std::shared_ptr<seal::GaloisKeys> galois_keys;
 
         // Initialization
         A()
@@ -36,7 +38,8 @@ int main()
 
             // Parameter selection
             parms = std::make_shared<seal::EncryptionParameters>(seal::scheme_type::bfv);
-            size_t poly_modulus_degree = 1 << 14; // 2^15
+            size_t poly_modulus_degree = 1 << 12;
+            assert(poly_modulus_degree >= SET_SIZE * SET_SIZE && "MUST HAVE AT LEAST SET_SIZE^2 SLOTS");
             parms->set_poly_modulus_degree(poly_modulus_degree);
             parms->set_coeff_modulus(seal::CoeffModulus::BFVDefault(poly_modulus_degree));
             parms->set_plain_modulus(seal::PlainModulus::Batching(poly_modulus_degree, 20));
@@ -55,6 +58,8 @@ int main()
             evaluator = std::make_shared<seal::Evaluator>(*context);
             relin_keys = std::make_shared<seal::RelinKeys>();
             keygen->create_relin_keys(*relin_keys);
+            galois_keys = std::make_shared<seal::GaloisKeys>();
+            keygen->create_galois_keys(*galois_keys);
         };
 
         psu::encrypted_identifiers encrypt_set()
@@ -96,7 +101,6 @@ int main()
 
     class B
     {
-
     public:
         // Initialization
         B()
@@ -134,7 +138,7 @@ int main()
 
     std::cout << "Now the third party (C) computes the private set union and returns the result to A:" << std::endl;
 
-    auto bits = psu::compute_psu_bools(input_a, input_b, *a.encoder, *a.encryptor, *a.context, *a.relin_keys, *a.evaluator);
+    auto bits = psu::compute_psu_bools(input_a, input_b, SET_SIZE, *a.encoder, *a.encryptor, *a.context, *a.relin_keys, *a.galois_keys, *a.evaluator);
 
     std::cout << "Now we'll verify the result:" << std::endl;
 
@@ -169,7 +173,7 @@ int main()
         std::cout << std::endl;
 
         std::cout << "Set b:" << std::endl;
-        for (auto &x : set_a)
+        for (auto &x : set_b)
         {
             std::cout << x << " ";
         }

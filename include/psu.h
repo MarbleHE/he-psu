@@ -35,16 +35,16 @@ namespace psu
             }
         }
 
-        // Now do one non-rotated one again so that we get the entire set (opposite site is all zeros)
-        size_t idx = 0;
-        for (auto id : set)
-        {
-            for (size_t b = 0; b < 24; ++b)
-            {
-                values[set.size() * set.size() + idx][b] = ((id >>= 1) % 2);
-            }
-            ++idx;
-        }
+        // // Now do one non-rotated one again so that we get the entire set (opposite site is all zeros)
+        // size_t idx = 0;
+        // for (auto id : set)
+        // {
+        //     for (size_t b = 0; b < 24; ++b)
+        //     {
+        //         values[set.size() * set.size() + idx][b] = ((id >>= 1) % 2);
+        //     }
+        //     ++idx;
+        // }
 
         // The rest is already set to zero!
 
@@ -99,7 +99,7 @@ namespace psu
     /// @param input_a batched encrypted identifiers
     /// @param input_b batched encrypted identifiers
     /// @return A ciphertext containing 1 in slot i  iff identifier a[i] and b[i] are equal
-    seal::Ciphertext compute_psu_bools(encrypted_identifiers &input_a, encrypted_identifiers &input_b, const seal::BatchEncoder &encoder, const seal::Encryptor &encryptor, const seal::SEALContext &context, const seal::RelinKeys &rlk, const seal::Evaluator &evaluator)
+    seal::Ciphertext compute_psu_bools(encrypted_identifiers &input_a, encrypted_identifiers &input_b, size_t set_size, const seal::BatchEncoder &encoder, const seal::Encryptor &encryptor, const seal::SEALContext &context, const seal::RelinKeys &rlk, const seal::GaloisKeys &glk, seal::Evaluator &evaluator)
     {
         // Sadly there's no sub_plain for the direction we need (1 - ctxt)
         // so we need to encrypt a ctxt full of ones
@@ -109,7 +109,7 @@ namespace psu
         seal::Ciphertext ones_ctxt;
         encryptor.encrypt(ones_ptxt, ones_ctxt);
 
-        // Overwrite a with !(a XOR b)
+        // Overwrite a with !(a XOR b) which is 1 iff a = b
         for (size_t b = 0; b < 24; ++b)
         {
             // Compute XOR as (a-b)^2
@@ -129,6 +129,19 @@ namespace psu
         // And finally, we want to invert again
         evaluator.sub(ones_ctxt, output, output);
 
+        // now output[i] = 0 <=> a and b were the same <=> its in both sets!
+
+        // Now we need to collapse everything back to a single representation.
+        // Since the A side is all kinds of rotated, we have to look at B instead.
+        // The goal is to have the first SET_SIZE slots be 0 iff the element in set B is also present in set A
+
+        seal::Ciphertext rot;
+        for (size_t i = set_size / 2; i > 0; i /= 2)
+        {
+            evaluator.rotate_columns(output, glk, rot);
+            evaluator.multiply_inplace(output, rot);
+            evaluator.relinearize_inplace(output, rlk);
+        }
         return output;
     }
 

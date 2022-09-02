@@ -37,7 +37,7 @@ int main()
 
             // Parameter selection
             parms = std::make_shared<seal::EncryptionParameters>(seal::scheme_type::bfv);
-            size_t poly_modulus_degree = 1 << 13; // 2^14
+            size_t poly_modulus_degree = 1 << 14; // 2^15
             parms->set_poly_modulus_degree(poly_modulus_degree);
             parms->set_coeff_modulus(seal::CoeffModulus::BFVDefault(poly_modulus_degree));
             parms->set_plain_modulus(seal::PlainModulus::Batching(poly_modulus_degree, 20));
@@ -60,7 +60,7 @@ int main()
 
         psu::encrypted_identifiers encrypt_set(size_t target_size)
         {
-            return psu::encrypt_set_a(set, target_size, *encoder, *encryptor);
+            return psu::encrypt_set_a(set, *encoder, *encryptor);
         }
 
         /// public only for testing!
@@ -114,7 +114,7 @@ int main()
 
         psu::encrypted_identifiers encrypt_set(size_t target_size, const seal::BatchEncoder &encoder, const seal::Encryptor &encryptor)
         {
-            return psu::encrypt_set_b(set, target_size, encoder, encryptor);
+            return psu::encrypt_set_b(set, encoder, encryptor);
         }
 
         /// public only for testing!

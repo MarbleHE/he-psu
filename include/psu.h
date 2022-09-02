@@ -15,45 +15,37 @@ namespace psu
     /// @param encoder SEAL encoder to use
     /// @param encryptor SEAL encrytor to use
     /// @return A set of
-    encrypted_identifiers encrypt_set_a(const std::set<uint32_t> &set, size_t target_size, const seal::BatchEncoder &encoder, const seal::Encryptor &encryptor)
+    encrypted_identifiers encrypt_set_a(const std::set<uint32_t> &set, const seal::BatchEncoder &encoder, const seal::Encryptor &encryptor)
     {
         std::vector<std::vector<uint64_t>> values(encoder.slot_count(), std::vector<uint64_t>(24, 0));
 
-        // Encode as many repetitions of the set as possible (minus one)
-        // but shift it by 1 each time round!
-        size_t repeats = encoder.slot_count() / set.size();
-        for (size_t r = 0; r < repeats - 1; ++r)
+        // Encode the repetitions, assuming both sets are the same size
+        // Rotate it by one each time
+        for (size_t r = 0; r < set.size(); ++r)
         {
-            size_t idx = 0 + r;
+            size_t idx = 0;
             for (auto id : set)
             {
                 for (size_t b = 0; b < 24; ++b)
                 {
-                    values[r * set.size() + (idx % set.size())][b] = id >> 1;
+                    values[r * set.size() + ((idx + r) % set.size())][b] = (id >>= 1) % 2;
                 }
                 ++idx;
             }
         }
 
         // Now do one non-rotated one again so that we get the entire set (opposite site is all zeros)
-        size_t idx = repeats - 1;
+        size_t idx = 0;
         for (auto id : set)
         {
             for (size_t b = 0; b < 24; ++b)
             {
-                values[(repeats - 1) * set.size() + (idx % set.size())][b] = ((id >>= 1) % 2);
+                values[set.size() * set.size() + idx][b] = ((id >>= 1) % 2);
             }
             ++idx;
         }
 
-        // Now fill the rest with zeros (This assumes 0 isn't a valid id!!)
-        for (size_t idx = repeats * set.size(); idx < encoder.slot_count(); ++idx)
-        {
-            for (size_t b = 0; b < 24; ++b)
-            {
-                values[idx][b] = 0;
-            }
-        }
+        // The rest is already set to zero!
 
         // Now encrypt this into 24 ciphertext
         encrypted_identifiers output(24);
@@ -68,13 +60,12 @@ namespace psu
         return output;
     }
 
-    encrypted_identifiers encrypt_set_b(const std::set<uint32_t> &set, size_t target_size, const seal::BatchEncoder &encoder, const seal::Encryptor &encryptor)
+    encrypted_identifiers encrypt_set_b(const std::set<uint32_t> &set, const seal::BatchEncoder &encoder, const seal::Encryptor &encryptor)
     {
         std::vector<std::vector<uint64_t>> values(encoder.slot_count(), std::vector<uint64_t>(24, 0));
 
-        // Encode as many repetitions of the set as possible, except for the last one!
-        size_t repeats = encoder.slot_count() / set.size();
-        for (size_t r = 0; r < repeats - 1; ++r)
+        // Encode many repetitions, one each for a permutation of the other set (which we assume is the same size)
+        for (size_t r = 0; r < set.size(); ++r)
         {
             size_t idx = 0;
             for (auto id : set)
@@ -87,14 +78,7 @@ namespace psu
             }
         }
 
-        // Now fill the rest with zeros (This assumes 0 isn't a valid id!!)
-        for (size_t idx = (repeats - 1) * set.size(); idx < encoder.slot_count(); ++idx)
-        {
-            for (size_t b = 0; b < 24; ++b)
-            {
-                values[idx][b] = 0;
-            }
-        }
+        // The rest is already set to zeros!
 
         // Now encrypt this into 24 ciphertext
         encrypted_identifiers output(24);
@@ -146,7 +130,8 @@ namespace psu
 
         return output;
     }
-    // Convert bits to an actual union:
+
+    /// Convert bits to an actual union:
     std::set<uint32_t> bits_to_set(const std::set<uint32_t> &set_a, const std::set<uint32_t> &set_b, const std::vector<uint64_t> &bits)
     {
         // start with set a

@@ -26,10 +26,10 @@ int main()
         // Initialization
         A()
         {
-            // Generate the secret set of 24 bit numbers
+            // Generate the secret set of 24 bit numbers (zero not allowed!)
             std::random_device rd;
             std::mt19937 gen(rd());
-            std::uniform_int_distribution<> distrib(0, 1 << 23);
+            std::uniform_int_distribution<> distrib(1, 1 << 23);
             for (size_t i = 0; i < SIZE_A; ++i)
             {
                 set.insert(distrib(gen));
@@ -102,10 +102,10 @@ int main()
         // Initialization
         B()
         {
-            // Generate the secret set of 24 bit numbers
+            // Generate the secret set of 24 bit numbers (zero not allowed!)
             std::random_device rd;
             std::mt19937 gen(rd());
-            std::uniform_int_distribution<> distrib(0, 1 << 23);
+            std::uniform_int_distribution<> distrib(1, 1 << 23);
             for (size_t i = 0; i < SIZE_B; ++i)
             {
                 set.insert(distrib(gen));

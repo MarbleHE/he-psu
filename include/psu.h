@@ -19,10 +19,10 @@ namespace psu
     {
         std::vector<std::vector<uint64_t>> values(encoder.slot_count(), std::vector<uint64_t>(24));
 
-        // Encode as many repetitions of the set as possible,
+        // Encode as many repetitions of the set as possible (minus one)
         // but shift it by 1 each time round!
         size_t repeats = encoder.slot_count() / set.size();
-        for (size_t r = 0; r < repeats; ++r)
+        for (size_t r = 0; r < repeats - 1; ++r)
         {
             size_t idx = 0 + r;
             for (auto id : set)
@@ -35,7 +35,18 @@ namespace psu
             }
         }
 
-        // Now fill the rest with zeros (//TODO: This assumes 0 isn't a valid id!!)
+        // Now do one non-rotated one again so that we get the entire set (opposite site is all zeros)
+        size_t idx = repeats - 1;
+        for (auto id : set)
+        {
+            for (size_t b = 0; b < 24; ++b)
+            {
+                values[(repeats - 1) * set.size() + (idx % set.size())][b] = id >> 1;
+            }
+            ++idx;
+        }
+
+        // Now fill the rest with zeros (This assumes 0 isn't a valid id!!)
         for (size_t idx = repeats * set.size(); idx < encoder.slot_count(); ++idx)
         {
             for (size_t b = 0; b < 24; ++b)
@@ -61,9 +72,9 @@ namespace psu
     {
         std::vector<std::vector<uint64_t>> values(encoder.slot_count(), std::vector<uint64_t>(24));
 
-        // Encode as many repetitions of the set as possible
+        // Encode as many repetitions of the set as possible, except for the last one!
         size_t repeats = encoder.slot_count() / set.size();
-        for (size_t r = 0; r < repeats; ++r)
+        for (size_t r = 0; r < repeats - 1; ++r)
         {
             size_t idx = 0;
             for (auto id : set)
@@ -76,8 +87,8 @@ namespace psu
             }
         }
 
-        // Now fill the rest with zeros (//TODO: This assumes 0 isn't a valid id!!)
-        for (size_t idx = repeats * set.size(); idx < encoder.slot_count(); ++idx)
+        // Now fill the rest with zeros (This assumes 0 isn't a valid id!!)
+        for (size_t idx = (repeats - 1) * set.size(); idx < encoder.slot_count(); ++idx)
         {
             for (size_t b = 0; b < 24; ++b)
             {

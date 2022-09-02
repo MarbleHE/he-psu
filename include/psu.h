@@ -94,12 +94,13 @@ namespace psu
         return output;
     }
 
-    /// @brief Computes (batched) bit-wise equality by computing the product of the XOR of the bits of each identifier.
-    /// Because of the batching scheme used, this effectively computes a vector that gives you whether or not an element is in the union
-    /// @param input_a batched encrypted identifiers
-    /// @param input_b batched encrypted identifiers
-    /// @return A ciphertext containing 1 in slot i  iff identifier a[i] and b[i] are equal
-    seal::Ciphertext compute_psu_bools(encrypted_identifiers &input_a, encrypted_identifiers &input_b, size_t set_size, const seal::BatchEncoder &encoder, const seal::Encryptor &encryptor, const seal::SEALContext &context, const seal::RelinKeys &rlk, const seal::GaloisKeys &glk, seal::Evaluator &evaluator)
+    /// @brief
+    /// This computes B \ A assuming |A|=|B|=2^k for some integer k, where the elements of A and B are 24-bit identifiers.
+    /// It requires very specifically encrypted inputs (see further documentation).
+    /// @param input_a must be all possible permutations of A, i.e. |A| permuted repetitions.
+    /// @param input_b must be |B| repetitions of B, all in the *same* order
+    /// @return A ciphertext containing 0 in slot i  iff the i-th element in B is also in A
+    seal::Ciphertext compute_b_minus_a_bools(encrypted_identifiers &input_a, encrypted_identifiers &input_b, size_t set_size, const seal::BatchEncoder &encoder, const seal::Encryptor &encryptor, const seal::SEALContext &context, const seal::RelinKeys &rlk, const seal::GaloisKeys &glk, seal::Evaluator &evaluator)
     {
         // Sadly there's no sub_plain for the direction we need (1 - ctxt)
         // so we need to encrypt a ctxt full of ones

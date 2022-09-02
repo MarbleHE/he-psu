@@ -17,7 +17,7 @@ namespace psu
     /// @return A set of
     encrypted_identifiers encrypt_set_a(const std::set<uint32_t> &set, size_t target_size, const seal::BatchEncoder &encoder, const seal::Encryptor &encryptor)
     {
-        std::vector<std::vector<uint64_t>> values(encoder.slot_count(), std::vector<uint64_t>(24));
+        std::vector<std::vector<uint64_t>> values(encoder.slot_count(), std::vector<uint64_t>(24, 0));
 
         // Encode as many repetitions of the set as possible (minus one)
         // but shift it by 1 each time round!
@@ -41,7 +41,7 @@ namespace psu
         {
             for (size_t b = 0; b < 24; ++b)
             {
-                values[(repeats - 1) * set.size() + (idx % set.size())][b] = (id >>= 1) % 2;
+                values[(repeats - 1) * set.size() + (idx % set.size())][b] = ((id >>= 1) % 2);
             }
             ++idx;
         }

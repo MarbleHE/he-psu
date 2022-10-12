@@ -23,6 +23,8 @@ namespace
     }
 } // namespace
 
+void naive();
+
 int main()
 {
     std::cout << "We will compute the set union between two sets (of the same size) encrypted under the same key:" << std::endl;
@@ -238,4 +240,186 @@ int main()
     }
 
     std::cout << "Time taken: " << ss_time.str() << " ms" << std::endl;
+
+    naive();
+}
+
+void naive()
+{
+    std::stringstream ss_time;
+
+    std::cout << "Now, we will compute the naive approach" << std::endl;
+
+    const size_t SET_SIZE = 128;
+
+    std::shared_ptr<seal::EncryptionParameters> parms;
+    std::shared_ptr<seal::PublicKey> public_key;
+    std::shared_ptr<seal::BatchEncoder> encoder;
+    std::shared_ptr<seal::SEALContext> context;
+    std::shared_ptr<seal::Encryptor> encryptor;
+    std::shared_ptr<seal::Evaluator> evaluator;
+    std::shared_ptr<seal::RelinKeys> relin_keys;
+    std::shared_ptr<seal::GaloisKeys> galois_keys;
+    std::unique_ptr<seal::KeyGenerator> keygen;
+    std::unique_ptr<seal::SecretKey> secret_key;
+    std::unique_ptr<seal::Decryptor> decryptor;
+
+    // Initialization
+
+    //// Generate the secret set of 24 bit numbers (zero not allowed!)
+    // std::set<uint32_t> set;
+    // std::random_device rd;
+    // std::mt19937 gen(rd());
+    // std::uniform_int_distribution<> distrib(1, 1 << 23);
+    // for (size_t i = 0; i < SET_SIZE; ++i)
+    //{
+    //     set.insert(distrib(gen));
+    // }
+
+    // Parameter selection
+    parms = std::make_shared<seal::EncryptionParameters>(seal::scheme_type::bfv);
+    size_t poly_modulus_degree = 4096;
+    parms->set_poly_modulus_degree(poly_modulus_degree);
+    parms->set_coeff_modulus(seal::CoeffModulus::BFVDefault(poly_modulus_degree));
+    parms->set_plain_modulus(seal::PlainModulus::Batching(poly_modulus_degree, 20));
+    context = std::make_shared<seal::SEALContext>(*parms);
+
+    // Private part of KeyGen
+    keygen = std::make_unique<seal::KeyGenerator>(*context);
+    secret_key = std::make_unique<seal::SecretKey>(keygen->secret_key());
+    decryptor = std::make_unique<seal::Decryptor>(*context, *secret_key);
+
+    // Public Keys
+    public_key = std::make_shared<seal::PublicKey>();
+    keygen->create_public_key(*public_key);
+    encoder = std::make_shared<seal::BatchEncoder>(*context);
+    encryptor = std::make_shared<seal::Encryptor>(*context, *public_key);
+    evaluator = std::make_shared<seal::Evaluator>(*context);
+    relin_keys = std::make_shared<seal::RelinKeys>();
+    keygen->create_relin_keys(*relin_keys);
+    galois_keys = std::make_shared<seal::GaloisKeys>();
+    keygen->create_galois_keys(*galois_keys);
+
+    std::vector<seal::Ciphertext> a_id(128 * 8);
+    std::vector<seal::Ciphertext> a_data(128);
+    std::vector<seal::Ciphertext> b_id(128 * 8);
+    std::vector<seal::Ciphertext> b_data(128);
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> distrib(0, 10000);
+
+    for (auto &c : a_id)
+    {
+        seal::Plaintext p;
+        encoder->encode(std::vector<uint64_t>(poly_modulus_degree, distrib(gen) % 2), p);
+        encryptor->encrypt(p, c);
+    }
+
+    for (auto &c : b_id)
+    {
+        seal::Plaintext p;
+        encoder->encode(std::vector<uint64_t>(poly_modulus_degree, distrib(gen) % 2), p);
+        encryptor->encrypt(p, c);
+    }
+
+    for (auto &c : a_data)
+    {
+        seal::Plaintext p;
+        encoder->encode(std::vector<uint64_t>(poly_modulus_degree, distrib(gen)), p);
+        encryptor->encrypt(p, c);
+    }
+
+    for (auto &c : b_data)
+    {
+        seal::Plaintext p;
+        encoder->encode(std::vector<uint64_t>(poly_modulus_degree, distrib(gen)), p);
+        encryptor->encrypt(p, c);
+    }
+
+    Timepoint t_start = Time::now();
+
+    // def encryptedPSU(a_id: Tensor[128, 8, sf64], a_data: Tensor[128, sf64],
+    //                b_id: Tensor[128, 8, sf64], b_data: Tensor[128, sf64]) -> sf64:
+    seal::Plaintext p_one;
+    encoder->encode(std::vector<uint64_t>(poly_modulus_degree, 1), p_one);
+    seal::Ciphertext one;
+
+    //   sum: sf64 = 0
+    //   for i in range(0, 128):
+    //       sum = sum + a_data[i]
+    seal::Plaintext p_zero;
+    encoder->encode(std::vector<uint64_t>(poly_modulus_degree, 0), p_zero);
+    seal::Ciphertext sum;
+    encryptor->encrypt(p_zero, sum);
+    for (auto &a : a_data)
+    {
+        evaluator->add_inplace(sum, a);
+    }
+
+    Timepoint t_end = Time::now();
+    log_time(ss_time, t_start, t_end, false);
+
+    //  for i in range(0, 128):
+    for (size_t i = 0; i < 1; ++i) // because this would take FOREVER with 128 iterations, we just do 10 and do math to extrapolate overall runtime!
+    {
+        // unique: sf64 = 1
+        seal::Ciphertext unique;
+        encryptor->encrypt(p_one, unique);
+        // for j in range(0, 128):
+        for (size_t j = 0; j < 10; ++j)
+        {
+            // # compute a_id[i]== b_id[j]
+            t_start = Time::now();
+            // equal: sf64 = 1
+            seal::Ciphertext equal;
+            encryptor->encrypt(p_one, equal);
+            // for k in range(0, 8):¨
+            for (size_t k = 0; k < 8; ++k)
+            {
+                // # a xor b == (a-b)^2
+                // x = (a_id[i][k] - b_id[j][k])**2
+                seal::Ciphertext x;
+                evaluator->sub(a_id[i * 8 + k], b_id[j * 8 + k], x);
+                evaluator->square_inplace(x);
+                evaluator->relinearize_inplace(x, *relin_keys);
+                // # not x == 1 - x
+                // nx = 1 - x
+                encryptor->encrypt(p_one, one);
+                seal::Ciphertext nx;
+                evaluator->sub(one, x, nx);
+                // equal = equal * nx
+                evaluator->multiply_inplace(equal, nx);
+                evaluator->relinearize_inplace(equal, *relin_keys);
+            }
+            // nequal = 1 - equal
+            seal::Ciphertext nequal;
+            evaluator->sub(one, equal, nequal);
+            // unique = unique * nequal
+            evaluator->multiply_inplace(unique, nequal);
+            evaluator->relinearize_inplace(unique, *relin_keys);
+
+            t_end = Time::now();
+            log_time(ss_time, t_start, t_end, false);
+        }
+
+        //  sum = sum + unique * a_data[i]
+        t_start = Time::now();
+        seal::Ciphertext product;
+        evaluator->multiply(unique, a_data[i], product);
+        evaluator->relinearize_inplace(product, *relin_keys);
+        evaluator->add_inplace(sum, product);
+        t_end = Time::now();
+        log_time(ss_time, t_start, t_end, true);
+    }
+
+    //  return sum
+
+    std::cout << "Time taken in ms (sum_a, 10 it of loop j, time to update sum): " << ss_time.str() << std::endl;
+
+    // total time is:
+    // time_sum_a  + 128 *  (128 * average(10 it of loop j) + time_update_sum)
+    // e.g., for output
+    // Time taken in ms (sum_a, 10 it of loop j, time to update sum): 2,41,41,41,40,47,43,41,40,42,40,2
+    // the average is 41.6, so the total is 682086 ms or  11 minutes
 }

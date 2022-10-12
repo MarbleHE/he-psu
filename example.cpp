@@ -244,7 +244,7 @@ int main()
     std::cout << "Time taken: " << ss_time.str() << " ms" << std::endl;
 
     heco();
-    // naive();
+    naive();
 }
 
 void heco()
@@ -403,6 +403,16 @@ void heco()
     Timepoint t_end = Time::now();
     log_time(ss_time, t_start, t_end, true);
     std::cout << "Time taken:  " << ss_time.str() << " ms" << std::endl;
+
+    // We will compute the set union between two sets (of the same size) encrypted under the same key:
+    // The output party (A) generates the keys and publishes the public key.
+    // The second party (B) only provides an encrypted input. This is sent to the third-party compute server.
+    // Now the third party (C) computes the private set union and returns the result to A:
+    // Now we'll verify the result:
+    // The result is correct! Yay!
+    // Time taken: 1341 ms
+    // Now, we will compute the heco approach
+    // Time taken:  57732 ms
 }
 
 void naive()
@@ -424,18 +434,6 @@ void naive()
     std::unique_ptr<seal::KeyGenerator> keygen;
     std::unique_ptr<seal::SecretKey> secret_key;
     std::unique_ptr<seal::Decryptor> decryptor;
-
-    // Initialization
-
-    //// Generate the secret set of 24 bit numbers (zero not allowed!)
-    // std::set<uint32_t> set;
-    // std::random_device rd;
-    // std::mt19937 gen(rd());
-    // std::uniform_int_distribution<> distrib(1, 1 << 23);
-    // for (size_t i = 0; i < SET_SIZE; ++i)
-    //{
-    //     set.insert(distrib(gen));
-    // }
 
     // Parameter selection
     parms = std::make_shared<seal::EncryptionParameters>(seal::scheme_type::bfv);
@@ -518,11 +516,8 @@ void naive()
         evaluator->add_inplace(sum, a);
     }
 
-    // Timepoint t_end = Time::now();
-    // log_time(ss_time, t_start, t_end, false);
-
     //  for i in range(0, 128):
-    for (size_t i = 0; i < 128; ++i) // because this would take FOREVER with 128 iterations, we just do 10 and do math to extrapolate overall runtime!
+    for (size_t i = 0; i < 128; ++i)
     {
         // unique: sf64 = 1
         seal::Ciphertext unique;
@@ -559,13 +554,7 @@ void naive()
             // unique = unique * nequal
             evaluator->multiply_inplace(unique, nequal);
             evaluator->relinearize_inplace(unique, *relin_keys);
-
-            // t_end = Time::now();
-            // log_time(ss_time, t_start, t_end, false);
         }
-
-        //  sum = sum + unique * a_data[i]
-        // t_start = Time::now();
         seal::Ciphertext product;
         evaluator->multiply(unique, a_data[i], product);
         evaluator->relinearize_inplace(product, *relin_keys);
@@ -573,14 +562,7 @@ void naive()
     }
 
     //  return sum
-
     Timepoint t_end = Time::now();
     log_time(ss_time, t_start, t_end, true);
     std::cout << "Time taken:  " << ss_time.str() << " ms" << std::endl;
-
-    // total time is:
-    // time_sum_a  + 128 *  (128 * average(10 it of loop j) + time_update_sum)
-    // e.g., for output
-    // Time taken in ms (sum_a, 10 it of loop j, time to update sum): 2,41,41,41,40,47,43,41,40,42,40,2
-    // the average is 41.6, so the total is 682086 ms or  11 minutes
 }

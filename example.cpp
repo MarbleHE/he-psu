@@ -5,11 +5,31 @@
 #include <set>
 #include <cassert>
 
+typedef std::chrono::high_resolution_clock Time;
+typedef decltype(std::chrono::high_resolution_clock::now()) Timepoint;
+typedef long long Duration;
+typedef std::chrono::milliseconds ms;
+
+namespace
+{
+    void log_time(std::stringstream &ss,
+                  std::chrono::time_point<std::chrono::high_resolution_clock> start,
+                  std::chrono::time_point<std::chrono::high_resolution_clock> end,
+                  bool last = false)
+    {
+        ss << std::chrono::duration_cast<ms>(end - start).count();
+        if (!last)
+            ss << ",";
+    }
+} // namespace
+
 int main()
 {
     std::cout << "We will compute the set union between two sets (of the same size) encrypted under the same key:" << std::endl;
-    const size_t SET_SIZE = 16;
+    const size_t SET_SIZE = 128;
     assert(pow(2.0, log2(SET_SIZE)) == SET_SIZE && "SET SIZE MUST BE A POWER OF TWO");
+
+    std::stringstream ss_time;
 
     std::cout << "The output party (A) generates the keys and publishes the public key." << std::endl;
     class A
@@ -134,10 +154,22 @@ int main()
 
     /// Encrypt b's set
     auto input_b = b.encrypt_set(*a.encoder, *a.encryptor);
+    seal::Plaintext p_a_data;
+    a.encoder->encode(std::vector<uint64_t>(SET_SIZE * SET_SIZE, 42), p_a_data);
+    seal::Ciphertext a_data;
+    a.encryptor->encrypt(p_a_data, a_data);
+
+    seal::Plaintext p_b_data;
+    a.encoder->encode(std::vector<uint64_t>(SET_SIZE * SET_SIZE, 24), p_b_data);
+    seal::Ciphertext b_data;
+    a.encryptor->encrypt(p_b_data, b_data);
 
     std::cout << "Now the third party (C) computes the private set union and returns the result to A:" << std::endl;
 
-    auto bits = psu::compute_b_minus_a_bools(input_a, input_b, SET_SIZE, *a.encoder, *a.encryptor, *a.context, *a.relin_keys, *a.galois_keys, *a.evaluator);
+    Timepoint t_start = Time::now();
+    auto bits = psu::compute_b_minus_a_bools(input_a, input_b, a_data, b_data, SET_SIZE, *a.encoder, *a.encryptor, *a.context, *a.relin_keys, *a.galois_keys, *a.evaluator);
+    Timepoint t_end = Time::now();
+    log_time(ss_time, t_start, t_end, true);
 
     std::cout << "Now we'll verify the result:" << std::endl;
 
@@ -150,13 +182,25 @@ int main()
 
     // Convert bits to an actual union:
     auto result = psu::bits_to_set(set_a, set_b, bits_dec);
+    int result_sum = 0;
+    for (auto &e : result)
+    {
+        result_sum += e;
+    }
 
     // Compute "correct" union
     std::set<uint32_t> actual_union;
     std::set_union(set_a.begin(), set_a.end(), set_b.begin(), set_b.end(),
                    std::inserter(actual_union, actual_union.begin()));
 
-    if (result == actual_union)
+    // compute the sum
+    int actual_sum = 0;
+    for (auto &e : actual_union)
+    {
+        actual_sum += e;
+    }
+
+    if (result_sum == actual_sum)
     {
         std::cout << "The result is correct! Yay!" << std::endl;
     }
@@ -192,4 +236,6 @@ int main()
         }
         std::cout << std::endl;
     }
+
+    std::cout << "Time taken: " << ss_time.str() << " ms" << std::endl;
 }

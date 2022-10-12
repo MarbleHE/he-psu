@@ -108,9 +108,8 @@ namespace psu
         seal::Ciphertext sum_a = data_a;
         for (size_t i = set_size / 2; i > 0; i /= 2)
         {
-            evaluator.rotate_columns(sum_a, glk, rot_a);
-            evaluator.multiply_inplace(sum_a, rot_a);
-            evaluator.relinearize_inplace(sum_a, rlk);
+            evaluator.rotate_rows(sum_a, i, glk, rot_a);
+            evaluator.add_inplace(sum_a, rot_a);
         }
 
         // Sadly there's no sub_plain for the direction we need (1 - ctxt)
@@ -164,9 +163,8 @@ namespace psu
         seal::Ciphertext rot_b;
         for (size_t i = set_size / 2; i > 0; i /= 2)
         {
-            evaluator.rotate_columns(output, glk, rot_b);
-            evaluator.multiply_inplace(output, rot_b);
-            evaluator.relinearize_inplace(output, rlk);
+            evaluator.rotate_rows(output, i, glk, rot_b);
+            evaluator.add_inplace(output, rot_b);
         }
 
         // and finally, add with the sum of A

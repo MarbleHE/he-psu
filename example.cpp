@@ -23,6 +23,8 @@ namespace
     }
 } // namespace
 
+void heco();
+
 void naive();
 
 int main()
@@ -241,7 +243,166 @@ int main()
 
     std::cout << "Time taken: " << ss_time.str() << " ms" << std::endl;
 
+    heco();
     // naive();
+}
+
+void heco()
+{
+    std::stringstream ss_time;
+
+    std::cout << "Now, we will compute the heco approach" << std::endl;
+
+    const size_t SET_SIZE = 128;
+
+    std::shared_ptr<seal::EncryptionParameters> parms;
+    std::shared_ptr<seal::PublicKey> public_key;
+    std::shared_ptr<seal::BatchEncoder> encoder;
+    std::shared_ptr<seal::SEALContext> context;
+    std::shared_ptr<seal::Encryptor> encryptor;
+    std::shared_ptr<seal::Evaluator> evaluator;
+    std::shared_ptr<seal::RelinKeys> relin_keys;
+    std::shared_ptr<seal::GaloisKeys> galois_keys;
+    std::unique_ptr<seal::KeyGenerator> keygen;
+    std::unique_ptr<seal::SecretKey> secret_key;
+    std::unique_ptr<seal::Decryptor> decryptor;
+
+    // Parameter selection
+    parms = std::make_shared<seal::EncryptionParameters>(seal::scheme_type::bfv);
+    size_t poly_modulus_degree = 4096;
+    parms->set_poly_modulus_degree(poly_modulus_degree);
+    parms->set_coeff_modulus(seal::CoeffModulus::BFVDefault(poly_modulus_degree));
+    parms->set_plain_modulus(seal::PlainModulus::Batching(poly_modulus_degree, 20));
+    context = std::make_shared<seal::SEALContext>(*parms);
+
+    // Private part of KeyGen
+    keygen = std::make_unique<seal::KeyGenerator>(*context);
+    secret_key = std::make_unique<seal::SecretKey>(keygen->secret_key());
+    decryptor = std::make_unique<seal::Decryptor>(*context, *secret_key);
+
+    // Public Keys
+    public_key = std::make_shared<seal::PublicKey>();
+    keygen->create_public_key(*public_key);
+    encoder = std::make_shared<seal::BatchEncoder>(*context);
+    encryptor = std::make_shared<seal::Encryptor>(*context, *public_key);
+    evaluator = std::make_shared<seal::Evaluator>(*context);
+    relin_keys = std::make_shared<seal::RelinKeys>();
+    keygen->create_relin_keys(*relin_keys);
+    galois_keys = std::make_shared<seal::GaloisKeys>();
+    keygen->create_galois_keys(*galois_keys);
+
+    seal::Ciphertext a_id;
+    seal::Ciphertext a_data;
+    seal::Ciphertext b_id;
+    seal::Ciphertext b_data;
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> distrib(0, 10000);
+
+    seal::Plaintext p;
+    encoder->encode(std::vector<uint64_t>(poly_modulus_degree, distrib(gen) % 2), p);
+    encryptor->encrypt(p, a_id);
+    encoder->encode(std::vector<uint64_t>(poly_modulus_degree, distrib(gen) % 2), p);
+    encryptor->encrypt(p, b_id);
+    encoder->encode(std::vector<uint64_t>(poly_modulus_degree, distrib(gen)), p);
+    encryptor->encrypt(p, a_data);
+    encoder->encode(std::vector<uint64_t>(poly_modulus_degree, distrib(gen)), p);
+    encryptor->encrypt(p, b_data);
+
+    Timepoint t_start = Time::now();
+
+    // def encryptedPSU(a_id: Tensor[128, 8, sf64], a_data: Tensor[128, sf64],
+    //                b_id: Tensor[128, 8, sf64], b_data: Tensor[128, sf64]) -> sf64:
+    seal::Plaintext p_one;
+    encoder->encode(std::vector<uint64_t>(poly_modulus_degree, 1), p_one);
+    seal::Ciphertext one;
+    encryptor->encrypt(p_one, one);
+
+    // compute the sum over A
+    seal::Plaintext p_zero;
+    encoder->encode(std::vector<uint64_t>(poly_modulus_degree, 0), p_zero);
+    seal::Ciphertext rot_a;
+    seal::Ciphertext sum_a = a_data;
+    for (size_t i = SET_SIZE / 2; i > 0; i /= 2)
+    {
+        evaluator->rotate_rows(sum_a, i, *galois_keys, rot_a);
+        evaluator->add_inplace(sum_a, rot_a);
+    }
+
+    // NOW WE HAVE O(n) nequal computations  instead of O(n^2)
+    // Each of them uses O(1) instead of O(k) to compute the xor
+    // Each of them uses O(log(k)) instead of O(k) mults to compute equal
+    std::vector<seal::Ciphertext> nequals(SET_SIZE);
+    for (size_t i = 1; i < SET_SIZE; ++i)
+    {
+        // compute a_id[j] != b_id[j-i*8 % 4] for each iteration
+        // Note that the rotation is by 8 x the offset because of the column-major encoding!
+        // compute xor
+        // %7 = fhe.rotate(%b_id) by -i*8 : <8 x i16>
+        seal::Ciphertext x;
+        evaluator->rotate_rows(a_id, -i * 8, *galois_keys, x);
+        // %8 = fhe.sub(%a_id, %7) : (!fhe.batched_secret<8 x i16>, !fhe.batched_secret<8 x i16>) -> !fhe.batched_secret<8 x i16>
+        evaluator->sub(a_id, x, x);
+        // %9 = fhe.multiply(%8, %8) : (!fhe.batched_secret<8 x i16>, !fhe.batched_secret<8 x i16>) -> !fhe.batched_secret<8 x i16>
+        evaluator->square_inplace(x);
+        evaluator->relinearize_inplace(x, *relin_keys);
+        // %10 = fhe.sub(%cst, %9) : (!fhe.batched_secret<8 x i16>, !fhe.batched_secret<8 x i16>) -> !fhe.batched_secret<8 x i16>
+        evaluator->sub(one, x, x);
+        // // update nequal: multiply all bits, then negate
+        // %11 = fhe.rotate(%10) by 1 : <8 x i16>
+        // %12 = fhe.multiply(%10, %11) : (!fhe.batched_secret<8 x i16>, !fhe.batched_secret<8 x i16>) -> !fhe.batched_secret<8 x i16>
+        seal::Ciphertext equal = one;
+        seal::Ciphertext rot;
+        for (size_t i = 8 / 2; i > 0; i /= 2)
+        {
+            evaluator->rotate_columns(x, *galois_keys, rot);
+            evaluator->multiply_inplace(equal, rot);
+            evaluator->relinearize_inplace(equal, *relin_keys);
+        }
+        // %13 = fhe.sub(%cst, %12) : (!fhe.batched_secret<8 x i16>, !fhe.batched_secret<8 x i16>) -> !fhe.batched_secret<8 x i16>
+        evaluator->sub(one, equal, nequals[i]);
+    }
+
+    // Now we compute O(n) unique * b[i], each sadly using O(n) rotates rather than the ideal O(1)
+    // This also uses O(n*n) multiplications, since
+    std::vector<seal::Ciphertext> uniques_times_bs;
+    for (size_t i = 1; i < SET_SIZE; ++i)
+    {
+        std::vector<seal::Ciphertext> operands;
+        operands.push_back(b_data);
+        for (size_t j = 1; j < SET_SIZE; ++j)
+        {
+            seal::Ciphertext rot;
+            evaluator->rotate_rows(nequals[j], -j * 8, *galois_keys, rot);
+            operands.push_back(rot);
+        }
+        seal::Ciphertext product;
+        evaluator->multiply_many(operands, *relin_keys, product);
+        uniques_times_bs.push_back(product);
+    }
+
+    // the final sum uses O(log n) rotations //TODO: Nope, more like n!
+    // running sum of loop (unique * b[i]) + sum of a[i] from before
+    std::vector<seal::Ciphertext> operands;
+    seal::Ciphertext rot_sum_a;
+    evaluator->rotate_rows(sum_a, -7, *galois_keys, rot_sum_a); // TODO is -k + 1 correct offset?
+    operands.push_back(rot_sum_a);
+
+    for (size_t i = 0; i < SET_SIZE - 1; ++i)
+    {
+        // TODO: figure out what eaxctly we should rotate which one by!
+        //  Not sure if mapping is actually this direct  between i and offset
+        seal::Ciphertext rot;
+        evaluator->rotate_rows(uniques_times_bs[i], i + 1, *galois_keys, rot);
+        operands.push_back(rot);
+    }
+    seal::Ciphertext result;
+    evaluator->add_many(operands, result);
+
+    Timepoint t_end = Time::now();
+    log_time(ss_time, t_start, t_end, true);
+    std::cout << "Time taken:  " << ss_time.str() << " ms" << std::endl;
 }
 
 void naive()
